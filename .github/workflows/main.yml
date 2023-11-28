@@ -1,70 +1,126 @@
 name: Build and Release
 
 on:
-  push:
-    branches:
-      - main
   release:
     types:
       - created
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.8
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
 
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pyinstaller PyQt5
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install githubrelease
 
-    - name: Build App
-      run: |
-        pyinstaller --onefile Coratia_Streaming_App/main.py
+      - name: Build Linux release
+        run: pyinstaller --onefile --add-data "resources:resources" main.py
 
-    - name: Compress and Rename
-      run: |
-        tar -czvf csa_linux.tar.gz dist
-        mv csa_linux.tar.gz csa_zip
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: linux-release
+          path: dist
+      
+      - name: Set up GitHub Release
+        id: gh-release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/main  # Adjust the filename based on your PyInstaller settings for Linux
+            dist/main.exe  # Adjust the filename based on your PyInstaller settings for Windows
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+          body: |
+            Changes in this release:
+            - Describe your changes here
+      - name: Upload Linux release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.gh-release.outputs.upload_url }}
+          asset_path: dist/main
+          asset_name: your_app_linux
+          asset_content_type: application/octet-stream
 
-    - name: Upload Release Artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: csa_zip
-        path: csa_zip
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
 
     steps:
-    - name: Download Release Artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: csa_zip
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        body: |
-          Changes in this Release
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
 
-    - name: Upload Release Artifact
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./csa_zip/csa_linux.tar.gz
-        asset_name: csa_linux.tar.gz
-        asset_content_type: application/gzip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install githubrelease
+          
+      - name: Build Windows release
+        run: pyinstaller --onefile --add-data "resources;resources" main.py
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: windows-release
+          path: dist
+            - name: Set up GitHub Release
+        id: gh-release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/main  # Adjust the filename based on your PyInstaller settings for Linux
+            dist/main.exe  # Adjust the filename based on your PyInstaller settings for Windows
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+          body: |
+            Changes in this release:
+            - Describe your changes here
+      - name: Upload Linux release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.gh-release.outputs.upload_url }}
+          asset_path: dist/main
+          asset_name: your_app_linux
+          asset_content_type: application/octet-stream  # Add content type based on your asset type
+
+      - name: Upload Windows release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.gh-release.outputs.upload_url }}
+          asset_path: dist/main.exe
+          asset_name: your_app_windows
+          asset_content_type: application/octet-stream
