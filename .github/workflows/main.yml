@@ -87,7 +87,7 @@ jobs:
         with:
           name: windows-release
           path: dist
-            - name: Set up GitHub Release
+      - name: Set up GitHub Release
         id: gh-release
         uses: softprops/action-gh-release@v1
         with:
