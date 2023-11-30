@@ -48,17 +48,25 @@ class SettingsDialog(QDialog):
         if directory:
             self.save_location_edit.setText(directory)
 
+
     def load_settings(self):
         settings = QSettings()
         self.port_edit.setText(settings.value('port_number', '5600'))
-        self.save_location_edit.setText(settings.value('save_location', 'recorded_video.mp4'))
+        default_save_location = os.path.join(os.path.expanduser("~"), "Documents", "Croatia_steam_app")
+        self.save_location_edit.setText(settings.value('save_location', default_save_location))
+        
+        
+        if not os.path.exists(default_save_location):
+            os.makedirs(default_save_location)
+            print(f"Default save location created: {default_save_location}")
+
 
     def save_settings(self):
         settings = QSettings()
         settings.setValue('port_number', self.port_edit.text())
         settings.setValue('save_location', self.save_location_edit.text())
         self.accept()
-    
+
 
 class VideoRecorderApp(QWidget):
     def __init__(self):
@@ -68,7 +76,7 @@ class VideoRecorderApp(QWidget):
 
         self.cap = cv2.VideoCapture()
         if not self.cap.open(f"udp://{self.get_ip_address()}:{self.get_port_number()}"):
-            print("Error: Unable to open video stream.")
+            print(f"Error: Unable to open video stream. {self.cap.retrieve()}")
             return
 
         self.timer = QTimer(self)
@@ -76,6 +84,13 @@ class VideoRecorderApp(QWidget):
         self.timer.start(30)  
 
         self.is_recording = False
+        self.video_writer = None
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_frame)
+        self.timer.start(30)  
+
+        self.is_recording = False  
         self.video_writer = None
 
     def initUI(self):
@@ -101,6 +116,7 @@ class VideoRecorderApp(QWidget):
         self.setLayout(main_layout)
 
     def update_frame(self):
+        
         ret, frame = self.cap.read()
 
         if not ret:
@@ -110,7 +126,7 @@ class VideoRecorderApp(QWidget):
         if ret:
             height, width, channel = frame.shape
             bytes_per_line = 3 * width
-            q_img = QPixmap.fromImage(QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888))
+            q_img = QPixmap.fromImage(QImage(frame.data, width, height, bytes_per_line, QImage.Format_BGR888))
             self.video_label.setPixmap(q_img)
 
             if self.is_recording:
@@ -118,15 +134,34 @@ class VideoRecorderApp(QWidget):
                     fps = 30.0 if self.cap.get(cv2.CAP_PROP_FPS) == 30.0 else 24.0
                     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                     save_location = self.get_save_location()
+
+                    if not os.path.exists(save_location):
+                        os.makedirs(save_location)
+                        print(f"Save location created: {save_location}")
+
                     timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())  
                     filename = f"video_{timestamp}.mp4"
                     save_path = os.path.join(save_location, filename)
+                    print(f"Saving to: {save_path}")
                     self.video_writer = cv2.VideoWriter(save_path, fourcc, fps, (width, height))
 
                 self.video_writer.write(frame)
+                
+
+    def closeEvent(self, event):
+        
+        if self.video_writer is not None:
+            self.video_writer.release()
+            print("Video writer released.")
+        event.accept()
+        
 
     def toggle_record(self):
+        if not hasattr(self, 'is_recording'):
+            self.is_recording = False
+
         self.is_recording = not self.is_recording
+
         if self.is_recording:
             print("Recording started")
             self.record_button.setText('Stop')
@@ -145,7 +180,7 @@ class VideoRecorderApp(QWidget):
 
     def get_ip_address(self):
         settings = QSettings()
-        return settings.value('ip_address', '192.168.1.4')
+        return settings.value('ip_address', '192.168.2.1')
 
     def get_port_number(self):
         settings = QSettings()
@@ -153,7 +188,9 @@ class VideoRecorderApp(QWidget):
 
     def get_save_location(self):
         settings = QSettings()
-        return settings.value('save_location', 'recorded_video.mp4')
+        default_save_location = os.path.join(os.path.expanduser("~"), "Documents", "Croatia_steam_app")
+        return settings.value('save_location', default_save_location)
+                              
 
 if __name__ == '__main__':
 
